@@ -7,6 +7,7 @@
 
 import cv2
 import pickle
+import numpy as np
 
 # gstreamer_pipeline returns a GStreamer pipeline for capturing from the CSI camera
 # Defaults to 1280x720 @ 60fps
@@ -42,7 +43,7 @@ def gstreamer_pipeline(
     )
 
 
-def show_camera(cam_mtx=None, cam_dist=None, h=720, w=1280, remap=True):
+def show_camera(cam_mtx=None, cam_dist=None, h=720, w=1280, remap=True, multi_view=True):
     if cam_mtx is not None and cam_dist is not None:
                 newcameramtx, roi = cv2.getOptimalNewCameraMatrix(cam_mtx, cam_dist, (w,h), 0, (w,h))
                 if remap:
@@ -65,7 +66,18 @@ def show_camera(cam_mtx=None, cam_dist=None, h=720, w=1280, remap=True):
                     dst = cv2.undistort(img, cam_mtx, cam_dist, None, newcameramtx)
                 # crop the image
                 x, y, w, h = roi
-                img = dst[y:y+h, x:x+w]
+                if multi_view:
+                    img = np.concatenate((img, dst[y:y+h, x:x+w]), axis=1)
+
+                    scale_percent = 50
+                    width = int(img.shape[1] * scale_percent / 100)
+                    height = int(img.shape[0] * scale_percent / 100)
+                    img = cv2.resize(img, (width, height))
+
+                    cv2.putText(img, "Original", (0,30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0),2)
+                    cv2.putText(img, "undistorted", (int(img.shape[1]/2), 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0),2)
+                else:
+                    img = dst[y:y+h, x:x+w]
         
             cv2.imshow("CSI Camera", img)
             # This also acts as
@@ -87,7 +99,7 @@ if __name__ == "__main__":
     undistort = True
     
     if undistort:
-        with open("camera/camera_mtx_dist.p", "rb") as cam_file:
+        with open("setup/camera/camera_mtx_dist.p", "rb") as cam_file:
             cam_mtx_dist = pickle.load(cam_file)
         show_camera(cam_mtx_dist['mtx'], cam_mtx_dist['dist'])
     else:
